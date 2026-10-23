@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+data/
+.dev-data/
+*.sqlite
+*.sqlite-journal
+playwright-report/
+test-results/
+.env
+opsdesk.config.json
+
+.venv-docs/
+.env.*
+!.env.example

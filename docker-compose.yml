@@ -1,0 +1,26 @@
+# Optional. Publishes OpsDesk on the loopback interface of the host ONLY.
+# Do not change "127.0.0.1:" to "0.0.0.0:" - OpsDesk has no authentication.
+services:
+  opsdesk:
+    build: .
+    image: opsdesk:local   # the release version comes from package.json inside the image; no second version string here
+    container_name: opsdesk
+    restart: unless-stopped
+    environment:
+      # Optional HTTP API access (see the documentation); both are empty by default = API token access disabled.
+      OPSDESK_API_TOKEN: ${OPSDESK_API_TOKEN:-}
+      OPSDESK_CORS_ORIGINS: ${OPSDESK_CORS_ORIGINS:-}
+    ports:
+      - "127.0.0.1:${OPSDESK_PORT:-4310}:4310"
+    volumes:
+      - opsdesk-data:/data          # named volume survives rebuilds; see README for bind-mount and backup commands
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  opsdesk-data:

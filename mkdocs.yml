@@ -1,0 +1,113 @@
+site_name: OpsDesk Documentation
+site_description: Documentation for OpsDesk, a local, offline infrastructure bookmarks dashboard.
+docs_dir: docs
+# The application server serves this directory under /docs/ (see "Documentation toolchain").
+site_dir: dist/docs
+use_directory_urls: true
+strict: true
+copyright: OpsDesk - local, offline, no telemetry
+
+theme:
+  name: material
+  language: en
+  font: false                     # no Google Fonts; Inter is bundled in docs/assets/fonts
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+extra_css:
+  - assets/extra.css
+  - assets/swagger/overrides.css
+
+# Swagger UI loader: acts only on pages containing <div id="opsdesk-swagger"> (the interactive API reference).
+extra_javascript:
+  - assets/swagger/loader.js
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: ["."]     # repository root: the cookbook embeds sections of the tested example scripts
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+
+# Every problem below becomes a build error because the build runs with --strict (npm run docs:build, CI).
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+  nav:
+    not_found: warn
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Prerequisites: getting-started/prerequisites.md
+      - Quick start: getting-started/quick-start.md
+      - Configuration reference: getting-started/configuration.md
+  - Guides:
+      - Local development: guides/local-development.md
+      - Production build and startup: guides/production.md
+      - Docker Compose: guides/docker.md
+      - Using OpsDesk: guides/using-opsdesk.md
+  - Operations:
+      - Databases: operations/databases.md
+      - Migrations: operations/migrations.md
+      - Backup and restore: operations/backup-restore.md
+      - Import, export and engine transfers: operations/import-export.md
+      - Health endpoint: operations/health.md
+      - Security model: operations/security.md
+      - Troubleshooting: operations/troubleshooting.md
+  - API Reference:
+      - API quick start: api/index.md
+      - Authentication: api/authentication.md
+      - curl cookbook: api/cookbook.md
+      - Pagination and filtering: api/pagination-filtering.md
+      - Import and export: api/import-export.md
+      - Errors and status codes: api/errors.md
+      - Coverage (UI to API): api/coverage.md
+      - Interactive reference: api/reference.md
+  - Reference:
+      - Architecture: reference/architecture.md
+      - Repository structure: reference/repository-structure.md
+  - Project:
+      - Releases and versioning: project/releases.md
+      - Documentation toolchain: project/documentation.md
+      - Verification report: project/verification.md

@@ -1,0 +1,42 @@
+/* OpsDesk identity for the documentation: same accent, same typeface (bundled locally - no web fonts are fetched). */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
+}
+
+:root {
+  --md-text-font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --md-code-font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1f5fd6;
+  --md-primary-fg-color--light: #4380ff;
+  --md-primary-fg-color--dark: #174fb8;
+  --md-accent-fg-color: #1a56c2;
+  --md-typeset-a-color: #1a56c2;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 215;
+  --md-default-bg-color: #0d1117;
+  --md-default-bg-color--light: #161c25;
+  --md-default-fg-color: #e6e9ee;
+  --md-primary-fg-color: #11161d;
+  --md-primary-bg-color: #e6e9ee;
+  --md-accent-fg-color: #8cb4ff;
+  --md-typeset-a-color: #8cb4ff;
+  --md-code-bg-color: #161c25;
+  --md-footer-bg-color: #0a0d12;
+}
+
+.md-header { border-bottom: 1px solid rgba(127, 127, 127, 0.25); box-shadow: none; }
+.md-header__button.md-logo img { height: 1.6rem; }
+.md-typeset h1 { font-weight: 650; letter-spacing: -0.02em; }
+.md-typeset h2 { font-weight: 650; letter-spacing: -0.01em; }
+.md-typeset code { border-radius: 4px; }
+.md-typeset .admonition, .md-typeset details { border-radius: 8px; }
+.md-typeset table:not([class]) { font-size: 0.78rem; }

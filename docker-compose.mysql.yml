@@ -1,0 +1,30 @@
+# Optional: OpsDesk on MySQL 8.4. Combine with the base file; the database container only starts when you ask for it:
+#   docker compose -f docker-compose.yml -f docker-compose.mysql.yml up -d --build
+# Requires MYSQL_PASSWORD and MYSQL_ROOT_PASSWORD in .env (see .env.example).
+services:
+  opsdesk:
+    environment:
+      OPSDESK_DB_CLIENT: mysql
+      OPSDESK_DB_SSL: "off"          # private compose network between two containers; use TLS for any remote server
+      OPSDESK_DATABASE_URL: mysql://opsdesk:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}@mysql:3306/opsdesk
+    depends_on:
+      mysql:
+        condition: service_healthy
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: opsdesk
+      MYSQL_USER: opsdesk
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - opsdesk-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uopsdesk -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    # No ports are published: only the opsdesk container can reach the database.
+volumes:
+  opsdesk-mysql:

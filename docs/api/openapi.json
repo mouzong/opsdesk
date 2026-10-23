@@ -1,0 +1,6176 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpsDesk HTTP API",
+    "version": "1.3.0",
+    "summary": "Everything the OpsDesk UI can do, for curl and scripts.",
+    "description": "Local, single-user API of the OpsDesk bookmarks dashboard.\n\n**Versioning:** the stable contract lives under `/api/v1`. The unversioned `/api` prefix is an alias of the current version used by the bundled UI. Within `v1` changes are backwards compatible (new endpoints, optional fields, new enum values on responses); anything breaking would appear as `/api/v2`.\n\n**Authentication:** `Authorization: Bearer <token>`, token configured on the server (`OPSDESK_API_TOKEN`). Changing data without a valid token is refused. Reads are anonymous on localhost.\n\n**Out of scope on purpose (not available through this API):** selecting the database engine, database credentials, the API token itself, file-system paths, process control, arbitrary SQL, and any deployment setting.",
+    "license": {
+      "name": "Proprietary",
+      "identifier": "LicenseRef-OpsDesk"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "This OpsDesk server (relative to the address you reached the API on)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health, version, capabilities and this specification. No credentials needed."
+    },
+    {
+      "name": "Settings",
+      "description": "Server-side preferences and first-run setup."
+    },
+    {
+      "name": "Workspaces",
+      "description": "Top-level containers. List, read, create, edit, delete (with move-or-delete semantics) and reorder."
+    },
+    {
+      "name": "Groups",
+      "description": "Sections inside a workspace. CRUD, reorder and move between workspaces."
+    },
+    {
+      "name": "Bookmarks",
+      "description": "Bookmark cards. CRUD, duplicate, move/reorder, pin/unpin (the `favorite` field)."
+    },
+    {
+      "name": "Search and metadata",
+      "description": "Environment values and tags (derived from bookmarks)."
+    },
+    {
+      "name": "Recent",
+      "description": "Recently opened history: list, record an opening, clear."
+    },
+    {
+      "name": "Import and export",
+      "description": "Portable JSON export; JSON / browser-HTML import with preview, merge and protected replace."
+    },
+    {
+      "name": "Backups",
+      "description": "SQLite database backups (not available on PostgreSQL/MySQL)."
+    },
+    {
+      "name": "UI internals",
+      "description": "Used by the bundled web UI; kept for compatibility. Not part of the CLI contract."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "System"
+        ],
+        "summary": "Application health",
+        "description": "Green/yellow/red health with database, storage and migration checks. HTTP 200 for green and yellow, **503** for red. The write probe runs in a rolled-back transaction: this GET never changes data. Bookmarked services are never probed.\n\n**Authentication:** none.\n\n**Idempotency:** safe (never changes data).",
+        "security": [],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "Healthy (green) or degraded (yellow).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "tags": [
+          "System"
+        ],
+        "summary": "Application release version",
+        "description": "The release version (from package.json, identical to the UI and /health) and genuine build metadata when the build recorded it.\n\n**Authentication:** none.\n\n**Idempotency:** safe (never changes data).",
+        "security": [],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "Version information.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "tags": [
+          "System"
+        ],
+        "summary": "Capabilities, active database engine and limits",
+        "description": "Read-only facts about this server: API version, active database engine (chosen at start-up, not changeable through the API), whether bearer-token access is enabled, supported features and limits. Contains no secrets and no filesystem paths.\n\n**Authentication:** none.\n\n**Idempotency:** safe (never changes data).",
+        "security": [],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "Capabilities.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "tags": [
+          "System"
+        ],
+        "summary": "This API as an OpenAPI 3.1 document",
+        "description": "The machine-readable contract, generated from the same route definitions and validation schemas the server executes.\n\n**Authentication:** none.\n\n**Idempotency:** safe (never changes data).",
+        "security": [],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/session": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "UI internals"
+        ],
+        "summary": "Session information for the bundled UI",
+        "description": "Used by the web UI (CSRF token, data locations). **Not an API credential**: the CSRF token only works together with a same-origin browser Origin header. CLI clients use a bearer token instead.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "x-internal": true,
+        "responses": {
+          "200": {
+            "description": "Session information.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get application preferences",
+        "description": "The only server-side, user-editable preference is the dashboard title. Theme, layout density and sidebar state are stored in the browser and are not part of the API. Database engine, credentials, ports and paths are deployment settings and cannot be read or changed here.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "Preferences.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSettings",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Change the dashboard title",
+        "description": "**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              },
+              "examples": {
+                "title": {
+                  "summary": "Rename the dashboard",
+                  "value": {
+                    "title": "Operations Desk"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated preferences.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/setup": {
+      "post": {
+        "operationId": "completeSetup",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "First-run choice: sample data or empty dashboard",
+        "description": "Allowed once. A second call returns 409. Sample content is never inserted again after it was removed.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "choice": {
+                    "type": "string",
+                    "enum": [
+                      "sample",
+                      "empty"
+                    ]
+                  }
+                },
+                "required": [
+                  "choice"
+                ]
+              },
+              "examples": {
+                "empty": {
+                  "summary": "Start empty",
+                  "value": {
+                    "choice": "empty"
+                  }
+                },
+                "sample": {
+                  "summary": "Start with labelled sample data",
+                  "value": {
+                    "choice": "sample"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/sample-data/remove": {
+      "post": {
+        "operationId": "removeSampleData",
+        "tags": [
+          "Settings"
+        ],
+        "summary": "⚠ Remove untouched sample data",
+        "description": "Deletes only sample items that were never edited or moved; anything the user created or changed is kept. Repeating the call removes nothing more.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "responses": {
+          "200": {
+            "description": "How many items were removed.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleRemoval"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "operationId": "getDashboard",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "The whole dashboard tree",
+        "description": "Title, setup state, all workspaces with their groups and bookmarks in display order, and recent ids. This is what the UI loads; prefer the paginated list endpoints for large dashboards.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "Dashboard.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/workspaces": {
+      "get": {
+        "operationId": "listWorkspaces",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "List workspaces (paginated)",
+        "description": "**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring of the name.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "position",
+              "type": "string",
+              "enum": [
+                "position",
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1-200).",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of items to skip.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of workspace summaries.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSummaryPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkspace",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Create a workspace",
+        "description": "**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "enum": [
+                      "globe",
+                      "server",
+                      "database",
+                      "search",
+                      "chart-line",
+                      "chart-bar",
+                      "activity",
+                      "gauge",
+                      "bell",
+                      "siren",
+                      "shield",
+                      "shield-alert",
+                      "key-round",
+                      "terminal",
+                      "code",
+                      "git-branch",
+                      "git-merge",
+                      "workflow",
+                      "wrench",
+                      "settings",
+                      "cloud",
+                      "hard-drive",
+                      "network",
+                      "cpu",
+                      "container",
+                      "box",
+                      "layers",
+                      "package",
+                      "rocket",
+                      "zap",
+                      "book-open",
+                      "file-text",
+                      "scroll-text",
+                      "clipboard-list",
+                      "life-buoy",
+                      "ticket",
+                      "users",
+                      "mail",
+                      "calendar",
+                      "bug",
+                      "flame",
+                      "eye",
+                      "radar",
+                      "monitor",
+                      "layout-dashboard",
+                      "folder",
+                      "bookmark",
+                      "link",
+                      "star",
+                      "house"
+                    ]
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "Name only",
+                  "value": {
+                    "name": "Observability"
+                  }
+                },
+                "withIcon": {
+                  "summary": "With a bundled icon",
+                  "value": {
+                    "name": "Observability",
+                    "icon": "activity"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Workspace created. The Location header points to it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL of the new resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/workspaces/{id}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Get a workspace with its groups and bookmarks",
+        "description": "**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Workspace identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace. Carries an ETag.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWorkspace",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Edit a workspace (name, icon)",
+        "description": "Send `If-Match: <ETag from GET>` to avoid overwriting a concurrent change (412 if it changed).\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Workspace identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "icon": {
+                    "type": "string",
+                    "enum": [
+                      "globe",
+                      "server",
+                      "database",
+                      "search",
+                      "chart-line",
+                      "chart-bar",
+                      "activity",
+                      "gauge",
+                      "bell",
+                      "siren",
+                      "shield",
+                      "shield-alert",
+                      "key-round",
+                      "terminal",
+                      "code",
+                      "git-branch",
+                      "git-merge",
+                      "workflow",
+                      "wrench",
+                      "settings",
+                      "cloud",
+                      "hard-drive",
+                      "network",
+                      "cpu",
+                      "container",
+                      "box",
+                      "layers",
+                      "package",
+                      "rocket",
+                      "zap",
+                      "book-open",
+                      "file-text",
+                      "scroll-text",
+                      "clipboard-list",
+                      "life-buoy",
+                      "ticket",
+                      "users",
+                      "mail",
+                      "calendar",
+                      "bug",
+                      "flame",
+                      "eye",
+                      "radar",
+                      "monitor",
+                      "layout-dashboard",
+                      "folder",
+                      "bookmark",
+                      "link",
+                      "star",
+                      "house"
+                    ]
+                  }
+                }
+              },
+              "examples": {
+                "rename": {
+                  "summary": "Rename",
+                  "value": {
+                    "name": "Observability & APM"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated workspace.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "New validator.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWorkspace",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "⚠ Delete a workspace",
+        "description": "**Destructive.** An empty workspace is deleted directly. A workspace that contains groups needs an explicit `mode`: `delete` removes everything inside, `move` relocates its groups to `targetId` first. Without `mode` the call fails with 409 and changes nothing. Executed in one transaction. Repeating the call after success returns 404.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Workspace identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Required when the target is not empty: \"delete\" removes the contents, \"move\" relocates them first.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete",
+                "move"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "query",
+            "required": false,
+            "description": "Destination (workspace id when deleting a workspace, group id when deleting a group) for mode \"move\".",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "description": "Required when the target is not empty: \"delete\" removes the contents, \"move\" relocates them first.",
+                    "type": "string",
+                    "enum": [
+                      "delete",
+                      "move"
+                    ]
+                  },
+                  "targetId": {
+                    "description": "Destination (workspace id when deleting a workspace, group id when deleting a group) for mode \"move\".",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              },
+              "examples": {
+                "move": {
+                  "summary": "Move groups elsewhere, then delete",
+                  "value": {
+                    "mode": "move",
+                    "targetId": "3f0c9d52-0000-4000-8000-000000000002"
+                  }
+                },
+                "remove": {
+                  "summary": "Delete with contents",
+                  "value": {
+                    "mode": "delete"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/workspaces/{id}/move": {
+      "post": {
+        "operationId": "moveWorkspace",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Reorder a workspace",
+        "description": "Places the workspace at zero-based `index` among all workspaces (values beyond the end mean \"last\"). Positions are renumbered in one transaction.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Workspace identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "index"
+                ]
+              },
+              "examples": {
+                "first": {
+                  "summary": "Move to the top",
+                  "value": {
+                    "index": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/groups": {
+      "get": {
+        "operationId": "listGroups",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "List groups (paginated)",
+        "description": "**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Only groups of this workspace.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring of the group name.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "position",
+              "type": "string",
+              "enum": [
+                "position",
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1-200).",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of items to skip.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of group summaries (without bookmarks; use GET /groups/{id}).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupSummaryPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/workspaces/{id}/groups": {
+      "post": {
+        "operationId": "createGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Create a group in a workspace",
+        "description": "**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Workspace identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              },
+              "examples": {
+                "group": {
+                  "summary": "New group",
+                  "value": {
+                    "name": "Elastic Stack"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Group created. The Location header points to it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL of the new resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/groups/{id}": {
+      "get": {
+        "operationId": "getGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Get a group with its bookmarks",
+        "description": "**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The group. Carries an ETag.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Edit a group (name, collapsed)",
+        "description": "**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "maxLength": 80,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "collapsed": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "examples": {
+                "collapse": {
+                  "summary": "Collapse the group",
+                  "value": {
+                    "collapsed": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated group.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "New validator.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "⚠ Delete a group",
+        "description": "**Destructive.** An empty group is deleted directly. A group that contains bookmarks needs an explicit `mode`: `delete` removes the bookmarks, `move` relocates them to the group `targetId` first. Without `mode` the call fails with 409 and changes nothing. One transaction.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Required when the target is not empty: \"delete\" removes the contents, \"move\" relocates them first.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "delete",
+                "move"
+              ]
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "query",
+            "required": false,
+            "description": "Destination (workspace id when deleting a workspace, group id when deleting a group) for mode \"move\".",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "description": "Required when the target is not empty: \"delete\" removes the contents, \"move\" relocates them first.",
+                    "type": "string",
+                    "enum": [
+                      "delete",
+                      "move"
+                    ]
+                  },
+                  "targetId": {
+                    "description": "Destination (workspace id when deleting a workspace, group id when deleting a group) for mode \"move\".",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              },
+              "examples": {
+                "move": {
+                  "summary": "Move bookmarks to another group",
+                  "value": {
+                    "mode": "move",
+                    "targetId": "3f0c9d52-0000-4000-8000-000000000003"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/groups/{id}/move": {
+      "post": {
+        "operationId": "moveGroup",
+        "tags": [
+          "Groups"
+        ],
+        "summary": "Reorder a group or move it to another workspace",
+        "description": "Places the group at `index`. Give `workspaceId` to move it to another workspace (appended at that index). One transaction.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "index"
+                ]
+              },
+              "examples": {
+                "reorder": {
+                  "summary": "Move to the top of its workspace",
+                  "value": {
+                    "index": 0
+                  }
+                },
+                "other": {
+                  "summary": "Move to another workspace",
+                  "value": {
+                    "workspaceId": "3f0c9d52-0000-4000-8000-000000000002",
+                    "index": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/bookmarks": {
+      "get": {
+        "operationId": "listBookmarks",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "List and search bookmarks (paginated)",
+        "description": "The same matching rules as the UI search: `q` is split on whitespace and every term must appear (case-insensitively) in title, description, URL, tags or owner. Omit `workspaceId` to search **all workspaces**; give it to search one. Filters combine with AND: environment matches ANY listed value, tag requires ALL listed tags, `favorite` filters pinned bookmarks. GET never changes state (it does not record an opening).\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Search terms.",
+            "schema": {
+              "example": "kibana prod",
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to one workspace (omit for all workspaces).",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "groupId",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to one group.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated environments; a bookmark matches ANY of them.",
+            "schema": {
+              "type": "string",
+              "example": "production,preproduction",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated tags; a bookmark must have ALL of them (case-insensitive).",
+            "schema": {
+              "type": "string",
+              "example": "elastic,logs",
+              "maxLength": 700
+            }
+          },
+          {
+            "name": "favorite",
+            "in": "query",
+            "required": false,
+            "description": "`true`: only pinned; `false`: only unpinned.",
+            "schema": {
+              "type": "boolean",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "`position` = display order (workspace, group, bookmark).",
+            "schema": {
+              "default": "position",
+              "type": "string",
+              "enum": [
+                "position",
+                "title",
+                "createdAt",
+                "updatedAt",
+                "lastOpenedAt",
+                "openCount"
+              ]
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction.",
+            "schema": {
+              "default": "asc",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1-200).",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of items to skip.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of bookmarks with their location.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkItemPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/groups/{id}/bookmarks": {
+      "post": {
+        "operationId": "createBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Create a bookmark in a group",
+        "description": "Only `http://` and `https://` URLs are accepted; embedded credentials are rejected. Pinning is the `favorite` field.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Group identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "description": "Only http:// and https:// URLs; no embedded user:password@."
+                  },
+                  "description": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "preproduction",
+                      "staging",
+                      "development",
+                      "lab",
+                      "other"
+                    ]
+                  },
+                  "owner": {
+                    "maxLength": 80,
+                    "type": "string"
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "globe",
+                          "server",
+                          "database",
+                          "search",
+                          "chart-line",
+                          "chart-bar",
+                          "activity",
+                          "gauge",
+                          "bell",
+                          "siren",
+                          "shield",
+                          "shield-alert",
+                          "key-round",
+                          "terminal",
+                          "code",
+                          "git-branch",
+                          "git-merge",
+                          "workflow",
+                          "wrench",
+                          "settings",
+                          "cloud",
+                          "hard-drive",
+                          "network",
+                          "cpu",
+                          "container",
+                          "box",
+                          "layers",
+                          "package",
+                          "rocket",
+                          "zap",
+                          "book-open",
+                          "file-text",
+                          "scroll-text",
+                          "clipboard-list",
+                          "life-buoy",
+                          "ticket",
+                          "users",
+                          "mail",
+                          "calendar",
+                          "bug",
+                          "flame",
+                          "eye",
+                          "radar",
+                          "monitor",
+                          "layout-dashboard",
+                          "folder",
+                          "bookmark",
+                          "link",
+                          "star",
+                          "house"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "maxItems": 20,
+                    "description": "Duplicates (case-insensitive) are removed; commas are stripped."
+                  },
+                  "favorite": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "maxLength": 4000,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "title",
+                  "url"
+                ]
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "Title and URL",
+                  "value": {
+                    "title": "Kibana",
+                    "url": "https://kibana.example.org:5601/app/discover"
+                  }
+                },
+                "full": {
+                  "summary": "All fields",
+                  "value": {
+                    "title": "Kibana",
+                    "url": "https://kibana.example.org:5601/app/discover",
+                    "description": "Log search",
+                    "environment": "production",
+                    "owner": "Observability",
+                    "icon": "search",
+                    "tags": [
+                      "elastic",
+                      "logs"
+                    ],
+                    "favorite": true,
+                    "note": "Start with the ops-logs-* data view."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bookmark created. The Location header points to it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL of the new resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bookmark"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/bookmarks/{id}": {
+      "get": {
+        "operationId": "getBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Get a bookmark (including its URL)",
+        "description": "Returns the bookmark data. It never opens the URL and never records an opening: use `recordBookmarkOpened` for that.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bookmark. Carries an ETag.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bookmark"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Edit a bookmark (including pin/unpin)",
+        "description": "Partial update: only the supplied fields change. `favorite` true/false pins or unpins. Use `If-Match` for lost-update protection. Moving between groups is a separate operation (`moveBookmark`).\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "maxLength": 120,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "description": "Only http:// and https:// URLs; no embedded user:password@."
+                  },
+                  "description": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "production",
+                      "preproduction",
+                      "staging",
+                      "development",
+                      "lab",
+                      "other"
+                    ]
+                  },
+                  "owner": {
+                    "maxLength": 80,
+                    "type": "string"
+                  },
+                  "icon": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "globe",
+                          "server",
+                          "database",
+                          "search",
+                          "chart-line",
+                          "chart-bar",
+                          "activity",
+                          "gauge",
+                          "bell",
+                          "siren",
+                          "shield",
+                          "shield-alert",
+                          "key-round",
+                          "terminal",
+                          "code",
+                          "git-branch",
+                          "git-merge",
+                          "workflow",
+                          "wrench",
+                          "settings",
+                          "cloud",
+                          "hard-drive",
+                          "network",
+                          "cpu",
+                          "container",
+                          "box",
+                          "layers",
+                          "package",
+                          "rocket",
+                          "zap",
+                          "book-open",
+                          "file-text",
+                          "scroll-text",
+                          "clipboard-list",
+                          "life-buoy",
+                          "ticket",
+                          "users",
+                          "mail",
+                          "calendar",
+                          "bug",
+                          "flame",
+                          "eye",
+                          "radar",
+                          "monitor",
+                          "layout-dashboard",
+                          "folder",
+                          "bookmark",
+                          "link",
+                          "star",
+                          "house"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "maxItems": 20,
+                    "description": "Duplicates (case-insensitive) are removed; commas are stripped."
+                  },
+                  "favorite": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "maxLength": 4000,
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {
+                "pin": {
+                  "summary": "Pin",
+                  "value": {
+                    "favorite": true
+                  }
+                },
+                "unpin": {
+                  "summary": "Unpin",
+                  "value": {
+                    "favorite": false
+                  }
+                },
+                "edit": {
+                  "summary": "Change title and tags",
+                  "value": {
+                    "title": "Kibana (prod)",
+                    "tags": [
+                      "elastic",
+                      "prod"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated bookmark.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "ETag": {
+                "description": "New validator.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bookmark"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "⚠ Delete a bookmark",
+        "description": "**Destructive** (no confirmation parameter; use `If-Match` to make sure you delete what you saw). Repeating the call returns 404.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/bookmarks/{id}/move": {
+      "post": {
+        "operationId": "moveBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Reorder a bookmark or move it to another group",
+        "description": "Places the bookmark at zero-based `index` of `groupId` (the same group = reorder; another group, possibly in another workspace = move). Both lists are renumbered in one transaction.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "description": "ETag from a previous GET. If the resource changed since, the request fails with 412 and nothing is modified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "W/\"1a2b3c4d5e6f7a8b9c0d\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "groupId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  }
+                },
+                "required": [
+                  "groupId",
+                  "index"
+                ]
+              },
+              "examples": {
+                "move": {
+                  "summary": "Move to the top of a group",
+                  "value": {
+                    "groupId": "3f0c9d52-0000-4000-8000-000000000003",
+                    "index": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/bookmarks/{id}/duplicate": {
+      "post": {
+        "operationId": "duplicateBookmark",
+        "tags": [
+          "Bookmarks"
+        ],
+        "summary": "Duplicate a bookmark",
+        "description": "Creates a copy titled \"<title> (copy)\" right after the original, not pinned.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Bookmark copy created. The Location header points to it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL of the new resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bookmark"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/bookmarks/{id}/opened": {
+      "post": {
+        "operationId": "recordBookmarkOpened",
+        "tags": [
+          "Recent"
+        ],
+        "summary": "Record that a bookmark was opened",
+        "description": "Updates the last-opened time and increments the open counter. This only records the event: the server never opens URLs or launches a browser. Each call counts as one opening.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Bookmark identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "listTags",
+        "tags": [
+          "Search and metadata"
+        ],
+        "summary": "List tags with usage counts (paginated)",
+        "description": "Tags are free-form labels stored on bookmarks; there is no separate tag resource and no tag rename/merge in the application. To add, change or remove tags, edit the bookmark (`updateBookmark`).\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": false,
+            "description": "Count within one workspace only.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Substring filter.",
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1-200).",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of items to skip.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tags, most used first.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/environments": {
+      "get": {
+        "operationId": "listEnvironments",
+        "tags": [
+          "Search and metadata"
+        ],
+        "summary": "List the supported environment values",
+        "description": "The environment is a fixed enumeration (it cannot be extended through the API); each bookmark carries exactly one value.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "All environment values with usage counts.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EnvironmentInfo"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/recent": {
+      "get": {
+        "operationId": "listRecent",
+        "tags": [
+          "Recent"
+        ],
+        "summary": "Recently opened bookmarks",
+        "description": "Bookmarks with a recorded opening, most recent first. Reading never records anything.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of items (1-50).",
+            "schema": {
+              "default": 12,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recently opened bookmarks.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BookmarkItem"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "clearRecent",
+        "tags": [
+          "Recent"
+        ],
+        "summary": "⚠ Clear the recently-opened history",
+        "description": "**Destructive.** Resets last-opened time and open counters of all bookmarks. Bookmarks themselves are untouched. Repeating the call clears nothing more.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "responses": {
+          "200": {
+            "description": "Number of bookmarks reset.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cleared"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/export": {
+      "get": {
+        "operationId": "exportDashboard",
+        "tags": [
+          "Import and export"
+        ],
+        "summary": "Export the dashboard as a JSON file",
+        "description": "Versioned portable document with all workspaces, groups, bookmarks and their order. Sent as an attachment (`Content-Disposition`). Excludes recently-opened history, sample markers and identifiers.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "responses": {
+          "200": {
+            "description": "The export document (file download).",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Content-Disposition": {
+                "description": "attachment; filename=\"opsdesk-export-<timestamp>.json\"",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDocument"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/import/preview": {
+      "post": {
+        "operationId": "previewImport",
+        "tags": [
+          "Import and export"
+        ],
+        "summary": "Preview an import without changing anything",
+        "description": "Runs the real import inside a transaction that is always rolled back and reports exactly what would be added, updated, skipped or removed. **Does not modify data** (a POST only because the document is the request body). Accepts JSON or a multipart file upload (bearer clients).\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "const": "json",
+                        "description": "An OpsDesk export document."
+                      },
+                      "data": {
+                        "$ref": "#/components/schemas/ExportDocument"
+                      },
+                      "mode": {
+                        "default": "merge",
+                        "description": "merge adds to the dashboard; replace deletes everything first (needs confirmReplace on apply).",
+                        "type": "string",
+                        "enum": [
+                          "merge",
+                          "replace"
+                        ]
+                      },
+                      "duplicates": {
+                        "default": "skip",
+                        "description": "For bookmarks that already exist (same URL in the same group): keep them or update them from the file.",
+                        "type": "string",
+                        "enum": [
+                          "skip",
+                          "update"
+                        ]
+                      },
+                      "confirmReplace": {
+                        "description": "Destructive-action flag: must be true to apply a replace import.",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "data"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "const": "html",
+                        "description": "A browser bookmarks export (Netscape HTML). Merge only."
+                      },
+                      "html": {
+                        "type": "string",
+                        "maxLength": 5242880,
+                        "description": "The HTML file content (parsed as data, never rendered)."
+                      },
+                      "workspaceName": {
+                        "description": "Workspace to import into (default \"Imported bookmarks\"); created if missing.",
+                        "type": "string",
+                        "maxLength": 400
+                      },
+                      "duplicates": {
+                        "default": "skip",
+                        "type": "string",
+                        "enum": [
+                          "skip",
+                          "update"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "html"
+                    ]
+                  }
+                ]
+              },
+              "examples": {
+                "merge": {
+                  "summary": "Merge an export, keep existing duplicates",
+                  "value": {
+                    "source": "json",
+                    "mode": "merge",
+                    "duplicates": "skip",
+                    "data": {
+                      "format": "opsdesk-export",
+                      "version": 1,
+                      "workspaces": [
+                        {
+                          "name": "Observability",
+                          "groups": [
+                            {
+                              "name": "Elastic Stack",
+                              "bookmarks": [
+                                {
+                                  "title": "APM",
+                                  "url": "https://apm.example.org/"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "html": {
+                  "summary": "Browser bookmarks (HTML)",
+                  "value": {
+                    "source": "html",
+                    "workspaceName": "Imported bookmarks",
+                    "html": "<DL><DT><A HREF=\"https://wiki.example.org/\">Wiki</A></DL>"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "OpsDesk export (.json) or browser bookmarks (.html), max 5 MB."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "replace"
+                    ],
+                    "default": "merge"
+                  },
+                  "duplicates": {
+                    "type": "string",
+                    "enum": [
+                      "skip",
+                      "update"
+                    ],
+                    "default": "skip"
+                  },
+                  "confirmReplace": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ],
+                    "description": "Must be \"true\" to apply a replace import."
+                  },
+                  "workspaceName": {
+                    "type": "string",
+                    "description": "HTML files only: target workspace."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "html"
+                    ],
+                    "description": "Optional; detected from the content when omitted."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the import would do.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/import/apply": {
+      "post": {
+        "operationId": "applyImport",
+        "tags": [
+          "Import and export"
+        ],
+        "summary": "⚠ Apply an import (merge or replace)",
+        "description": "A safety backup is created first (`backup` in the response), then the import runs as **one transaction**: any failure leaves existing data untouched.\n\n**Merge** (default) adds to the dashboard: workspaces/groups match by name (case-insensitive), bookmarks by normalised URL within the group; `duplicates` chooses skip or update.\n\n**Replace is destructive**: it deletes all current workspaces, groups and bookmarks first and requires `\"confirmReplace\": true`, otherwise the call fails with 400 `confirmation_required` and nothing changes. HTML imports are merge-only.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "const": "json",
+                        "description": "An OpsDesk export document."
+                      },
+                      "data": {
+                        "$ref": "#/components/schemas/ExportDocument"
+                      },
+                      "mode": {
+                        "default": "merge",
+                        "description": "merge adds to the dashboard; replace deletes everything first (needs confirmReplace on apply).",
+                        "type": "string",
+                        "enum": [
+                          "merge",
+                          "replace"
+                        ]
+                      },
+                      "duplicates": {
+                        "default": "skip",
+                        "description": "For bookmarks that already exist (same URL in the same group): keep them or update them from the file.",
+                        "type": "string",
+                        "enum": [
+                          "skip",
+                          "update"
+                        ]
+                      },
+                      "confirmReplace": {
+                        "description": "Destructive-action flag: must be true to apply a replace import.",
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "data"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "const": "html",
+                        "description": "A browser bookmarks export (Netscape HTML). Merge only."
+                      },
+                      "html": {
+                        "type": "string",
+                        "maxLength": 5242880,
+                        "description": "The HTML file content (parsed as data, never rendered)."
+                      },
+                      "workspaceName": {
+                        "description": "Workspace to import into (default \"Imported bookmarks\"); created if missing.",
+                        "type": "string",
+                        "maxLength": 400
+                      },
+                      "duplicates": {
+                        "default": "skip",
+                        "type": "string",
+                        "enum": [
+                          "skip",
+                          "update"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "html"
+                    ]
+                  }
+                ]
+              },
+              "examples": {
+                "merge": {
+                  "summary": "Merge",
+                  "value": {
+                    "source": "json",
+                    "mode": "merge",
+                    "duplicates": "update",
+                    "data": {
+                      "format": "opsdesk-export",
+                      "version": 1,
+                      "workspaces": []
+                    }
+                  }
+                },
+                "replace": {
+                  "summary": "Replace everything (destructive)",
+                  "value": {
+                    "source": "json",
+                    "mode": "replace",
+                    "confirmReplace": true,
+                    "data": {
+                      "format": "opsdesk-export",
+                      "version": 1,
+                      "workspaces": []
+                    }
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "OpsDesk export (.json) or browser bookmarks (.html), max 5 MB."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "merge",
+                      "replace"
+                    ],
+                    "default": "merge"
+                  },
+                  "duplicates": {
+                    "type": "string",
+                    "enum": [
+                      "skip",
+                      "update"
+                    ],
+                    "default": "skip"
+                  },
+                  "confirmReplace": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ],
+                    "description": "Must be \"true\" to apply a replace import."
+                  },
+                  "workspaceName": {
+                    "type": "string",
+                    "description": "HTML files only: target workspace."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "html"
+                    ],
+                    "description": "Optional; detected from the content when omitted."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was done and the name of the safety backup.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/backups": {
+      "get": {
+        "operationId": "listBackups",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "List database backups (SQLite only)",
+        "description": "Backup metadata (name, size, creation time, kind), newest first. Only available for SQLite; PostgreSQL/MySQL return 409 `not_supported` (use your database tools).\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "auto",
+                "pre-import",
+                "pre-restore",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size (1-200).",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of items to skip.",
+            "schema": {
+              "default": 0,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of backups.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupInfoPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createBackup",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "Create a manual backup (SQLite only)",
+        "description": "Consistent snapshot while the application runs. The file stays in the server's backups folder; download it with `downloadBackup`.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent - send an Idempotency-Key to retry safely.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key (8-128 chars of A-Z a-z 0-9 . _ : -). A retry with the same key and body replays the first response instead of repeating the operation (kept 24 h, in memory).",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            },
+            "example": "create-ws-2026-10-22-0001"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Backup created. The Location header points to it.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Location": {
+                "description": "URL of the new resource.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Validator for If-Match.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/backups/{name}": {
+      "get": {
+        "operationId": "getBackup",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "Backup metadata",
+        "description": "**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "example": "manual-20261022T093000123Z.sqlite"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backup metadata.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteBackup",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "⚠ Delete a backup file (SQLite only)",
+        "description": "**Destructive.** Removes the backup file. Repeating the call returns 404.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** idempotent (repeating it has the same effect as once).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/backups/{name}/download": {
+      "get": {
+        "operationId": "downloadBackup",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "Download a backup file",
+        "description": "Streams the SQLite backup file (`application/vnd.sqlite3`) as an attachment. Only names inside the backups folder are accepted.\n\n**Authentication:** none on localhost (same trust as the web UI). A bearer token is accepted, and required for browser calls from another origin.\n\n**Idempotency:** safe (never changes data).",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "safe",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The SQLite file.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "Content-Disposition": {
+                "description": "attachment; filename=\"<name>\"",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.sqlite3": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/backups/{name}/restore": {
+      "post": {
+        "operationId": "restoreBackup",
+        "tags": [
+          "Backups"
+        ],
+        "summary": "⚠ Restore a backup (SQLite only)",
+        "description": "**Destructive.** Replaces the current database with the backup after validating it (integrity check, schema version, tables) and saving the current data as a `pre-restore-*` backup. Requires `{\"confirm\": true}`; otherwise 400 `confirmation_required` and nothing changes. A failed restore puts the previous data back.\n\n**Authentication:** required - `Authorization: Bearer <token>` (token configured on the server as `OPSDESK_API_TOKEN`). The bundled web UI authenticates with its same-origin session instead.\n\n**Idempotency:** not idempotent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-idempotency": "not-idempotent",
+        "x-destructive": true,
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "description": "Must be true."
+                  }
+                },
+                "required": [
+                  "confirm"
+                ]
+              },
+              "examples": {
+                "confirm": {
+                  "summary": "Confirm",
+                  "value": {
+                    "confirm": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restored. `safetyBackup` is the copy of the previous data.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoreResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "The server-side API token (OPSDESK_API_TOKEN). Treat it like a password; never put it in URLs."
+      }
+    },
+    "headers": {
+      "XRequestId": {
+        "description": "Request correlation id (also in error bodies and the server log). You may supply your own 8-64 character `X-Request-Id`.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Bookmark": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "preproduction",
+              "staging",
+              "development",
+              "lab",
+              "other"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "globe",
+                  "server",
+                  "database",
+                  "search",
+                  "chart-line",
+                  "chart-bar",
+                  "activity",
+                  "gauge",
+                  "bell",
+                  "siren",
+                  "shield",
+                  "shield-alert",
+                  "key-round",
+                  "terminal",
+                  "code",
+                  "git-branch",
+                  "git-merge",
+                  "workflow",
+                  "wrench",
+                  "settings",
+                  "cloud",
+                  "hard-drive",
+                  "network",
+                  "cpu",
+                  "container",
+                  "box",
+                  "layers",
+                  "package",
+                  "rocket",
+                  "zap",
+                  "book-open",
+                  "file-text",
+                  "scroll-text",
+                  "clipboard-list",
+                  "life-buoy",
+                  "ticket",
+                  "users",
+                  "mail",
+                  "calendar",
+                  "bug",
+                  "flame",
+                  "eye",
+                  "radar",
+                  "monitor",
+                  "layout-dashboard",
+                  "folder",
+                  "bookmark",
+                  "link",
+                  "star",
+                  "house"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "favorite": {
+            "type": "boolean",
+            "description": "Pinned. \"Pin\" and \"favorite\" are the same field."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "lastOpenedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-10-22T09:30:00.000Z"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "openCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "title",
+          "url",
+          "description",
+          "environment",
+          "owner",
+          "icon",
+          "tags",
+          "favorite",
+          "note",
+          "isSample",
+          "createdAt",
+          "updatedAt",
+          "lastOpenedAt",
+          "openCount"
+        ],
+        "additionalProperties": false
+      },
+      "BookmarkItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "groupId": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "production",
+              "preproduction",
+              "staging",
+              "development",
+              "lab",
+              "other"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "globe",
+                  "server",
+                  "database",
+                  "search",
+                  "chart-line",
+                  "chart-bar",
+                  "activity",
+                  "gauge",
+                  "bell",
+                  "siren",
+                  "shield",
+                  "shield-alert",
+                  "key-round",
+                  "terminal",
+                  "code",
+                  "git-branch",
+                  "git-merge",
+                  "workflow",
+                  "wrench",
+                  "settings",
+                  "cloud",
+                  "hard-drive",
+                  "network",
+                  "cpu",
+                  "container",
+                  "box",
+                  "layers",
+                  "package",
+                  "rocket",
+                  "zap",
+                  "book-open",
+                  "file-text",
+                  "scroll-text",
+                  "clipboard-list",
+                  "life-buoy",
+                  "ticket",
+                  "users",
+                  "mail",
+                  "calendar",
+                  "bug",
+                  "flame",
+                  "eye",
+                  "radar",
+                  "monitor",
+                  "layout-dashboard",
+                  "folder",
+                  "bookmark",
+                  "link",
+                  "star",
+                  "house"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "favorite": {
+            "type": "boolean",
+            "description": "Pinned. \"Pin\" and \"favorite\" are the same field."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "lastOpenedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-10-22T09:30:00.000Z"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "openCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "workspaceName": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "title",
+          "url",
+          "description",
+          "environment",
+          "owner",
+          "icon",
+          "tags",
+          "favorite",
+          "note",
+          "isSample",
+          "createdAt",
+          "updatedAt",
+          "lastOpenedAt",
+          "openCount",
+          "workspaceId",
+          "workspaceName",
+          "groupName"
+        ],
+        "additionalProperties": false
+      },
+      "Group": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string"
+          },
+          "collapsed": {
+            "type": "boolean"
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "bookmarks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bookmark"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "collapsed",
+          "isSample",
+          "bookmarks"
+        ],
+        "additionalProperties": false
+      },
+      "GroupSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string"
+          },
+          "collapsed": {
+            "type": "boolean"
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "bookmarkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "collapsed",
+          "isSample",
+          "position",
+          "bookmarkCount"
+        ],
+        "additionalProperties": false
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Group"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "isSample",
+          "groups"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Opaque stable identifier (UUID).",
+            "example": "3f0c9d52-0000-4000-8000-000000000001"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "isSample": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "groupCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "bookmarkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "icon",
+          "isSample",
+          "position",
+          "groupCount",
+          "bookmarkCount"
+        ],
+        "additionalProperties": false
+      },
+      "Dashboard": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "setup": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "done"
+            ]
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workspace"
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Opaque stable identifier (UUID).",
+              "example": "3f0c9d52-0000-4000-8000-000000000001"
+            },
+            "description": "Most recently opened bookmark ids (max 12)."
+          }
+        },
+        "required": [
+          "title",
+          "setup",
+          "workspaces",
+          "recent"
+        ],
+        "additionalProperties": false
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "Ok": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": false
+      },
+      "Cleared": {
+        "type": "object",
+        "properties": {
+          "cleared": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Bookmarks whose history was reset."
+          }
+        },
+        "required": [
+          "cleared"
+        ],
+        "additionalProperties": false
+      },
+      "SampleRemoval": {
+        "type": "object",
+        "properties": {
+          "bookmarks": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "groups": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "workspaces": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "bookmarks",
+          "groups",
+          "workspaces"
+        ],
+        "additionalProperties": false
+      },
+      "Tag": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "tag",
+          "count"
+        ],
+        "additionalProperties": false
+      },
+      "EnvironmentInfo": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "production",
+              "preproduction",
+              "staging",
+              "development",
+              "lab",
+              "other"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "bookmarkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "value",
+          "label",
+          "bookmarkCount"
+        ],
+        "additionalProperties": false
+      },
+      "PageInfo": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "limit",
+          "offset",
+          "total",
+          "hasMore"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceSummaryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSummary"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "additionalProperties": false
+      },
+      "GroupSummaryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupSummary"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "additionalProperties": false
+      },
+      "BookmarkItemPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookmarkItem"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "additionalProperties": false
+      },
+      "TagPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "additionalProperties": false
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code (see \"Errors and status codes\").",
+                "example": "validation_error"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "description": "Field-level messages for validation errors, keyed by field path.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "requestId": {
+                "type": "string",
+                "description": "Same value as the X-Request-Id response header."
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "application": {
+            "type": "string",
+            "const": "opsdesk"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.3.0"
+          },
+          "apiVersion": {
+            "type": "string",
+            "const": "v1"
+          },
+          "build": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "builtAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-10-22T09:30:00.000Z"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "builtAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "application",
+          "version",
+          "apiVersion",
+          "build"
+        ],
+        "additionalProperties": false
+      },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string",
+            "const": "v1"
+          },
+          "version": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "object",
+            "properties": {
+              "client": {
+                "type": "string",
+                "enum": [
+                  "sqlite",
+                  "postgres",
+                  "mysql"
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "client",
+              "label"
+            ],
+            "additionalProperties": false,
+            "description": "Read-only: chosen at server start-up."
+          },
+          "authentication": {
+            "type": "object",
+            "properties": {
+              "bearerToken": {
+                "type": "boolean",
+                "description": "true when OPSDESK_API_TOKEN is configured, so the API accepts Authorization: Bearer."
+              },
+              "corsOrigins": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of explicitly allowed browser origins (names are not disclosed)."
+              }
+            },
+            "required": [
+              "bearerToken",
+              "corsOrigins"
+            ],
+            "additionalProperties": false
+          },
+          "features": {
+            "type": "object",
+            "properties": {
+              "fileBackups": {
+                "type": "boolean",
+                "description": "SQLite database-file backups (false on PostgreSQL/MySQL)."
+              },
+              "multipartImport": {
+                "type": "boolean"
+              },
+              "idempotencyKey": {
+                "type": "boolean"
+              },
+              "conditionalRequests": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "fileBackups",
+              "multipartImport",
+              "idempotencyKey",
+              "conditionalRequests"
+            ],
+            "additionalProperties": false
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "pageSizeMax": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "importBytes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookmarksTotal": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "workspaces": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupsPerWorkspace": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "title": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "description": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "note": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "pageSizeMax",
+              "importBytes",
+              "bookmarksTotal",
+              "workspaces",
+              "groupsPerWorkspace",
+              "title",
+              "description",
+              "note"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "apiVersion",
+          "version",
+          "engine",
+          "authentication",
+          "features",
+          "limits"
+        ],
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "application_name": {
+            "type": "string",
+            "const": "opsdesk"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "green",
+              "yellow",
+              "red"
+            ]
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "uptime_in_seconds": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "cached": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "object",
+            "properties": {
+              "database": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "green",
+                      "yellow",
+                      "red",
+                      "not_applicable"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "readable": {
+                    "type": "boolean"
+                  },
+                  "writable": {
+                    "type": "boolean"
+                  },
+                  "response_time_ms": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "status",
+                  "type",
+                  "readable",
+                  "writable",
+                  "response_time_ms"
+                ],
+                "additionalProperties": false
+              },
+              "storage": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "green",
+                      "yellow",
+                      "red",
+                      "not_applicable"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "data_directory_writable": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "string",
+                        "const": "not_applicable"
+                      }
+                    ]
+                  },
+                  "backup_directory_writable": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "status",
+                  "data_directory_writable",
+                  "backup_directory_writable"
+                ],
+                "additionalProperties": false
+              },
+              "migrations": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "green",
+                      "yellow",
+                      "red",
+                      "not_applicable"
+                    ]
+                  },
+                  "error": {
+                    "type": "string"
+                  },
+                  "current_version": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "latest_version": {
+                    "type": "string"
+                  },
+                  "pending": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "current_version",
+                  "latest_version",
+                  "pending"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "database",
+              "storage",
+              "migrations"
+            ],
+            "additionalProperties": false
+          },
+          "response_time_ms": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "application_name",
+          "status",
+          "timed_out",
+          "version",
+          "timestamp",
+          "uptime_in_seconds",
+          "cached",
+          "checks",
+          "response_time_ms"
+        ],
+        "additionalProperties": false
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "csrfToken": {
+            "type": "string",
+            "description": "UI-internal CSRF token. NOT an API credential."
+          },
+          "version": {
+            "type": "string"
+          },
+          "build": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "builtAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2026-10-22T09:30:00.000Z"
+                  },
+                  "commit": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "builtAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dataDir": {
+            "type": "string"
+          },
+          "dbPath": {
+            "type": "string"
+          },
+          "backupDir": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "database": {
+            "type": "object",
+            "properties": {
+              "client": {
+                "type": "string",
+                "enum": [
+                  "sqlite",
+                  "postgres",
+                  "mysql"
+                ]
+              },
+              "label": {
+                "type": "string"
+              },
+              "tls": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "client",
+              "label",
+              "tls"
+            ],
+            "additionalProperties": false
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "csrfToken",
+          "version",
+          "build",
+          "dataDir",
+          "dbPath",
+          "backupDir",
+          "schemaVersion",
+          "database",
+          "host",
+          "port"
+        ],
+        "additionalProperties": false
+      },
+      "ExportDocument": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "opsdesk-export"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "example": 1
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "app": {
+            "type": "string",
+            "const": "OpsDesk"
+          },
+          "dashboard": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "icon": {
+                  "type": "string"
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "collapsed": {
+                        "type": "boolean"
+                      },
+                      "bookmarks": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "environment": {
+                              "type": "string",
+                              "enum": [
+                                "production",
+                                "preproduction",
+                                "staging",
+                                "development",
+                                "lab",
+                                "other"
+                              ]
+                            },
+                            "owner": {
+                              "type": "string"
+                            },
+                            "icon": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "favorite": {
+                              "type": "boolean"
+                            },
+                            "note": {
+                              "type": "string"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "example": "2026-10-22T09:30:00.000Z"
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "example": "2026-10-22T09:30:00.000Z"
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "url",
+                            "description",
+                            "environment",
+                            "owner",
+                            "icon",
+                            "tags",
+                            "favorite",
+                            "note",
+                            "createdAt",
+                            "updatedAt"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "collapsed",
+                      "bookmarks"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "icon",
+                "groups"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "exportedAt",
+          "app",
+          "dashboard",
+          "workspaces"
+        ],
+        "additionalProperties": false
+      },
+      "ImportPreview": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "json",
+              "html"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "replace"
+            ]
+          },
+          "duplicates": {
+            "type": "string",
+            "enum": [
+              "skip",
+              "update"
+            ]
+          },
+          "counts": {
+            "type": "object",
+            "properties": {
+              "workspacesAdded": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "workspacesExisting": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupsAdded": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupsExisting": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookmarksAdded": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookmarksUpdated": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookmarksSkipped": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "workspacesRemoved": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "groupsRemoved": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "bookmarksRemoved": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "workspacesAdded",
+              "workspacesExisting",
+              "groupsAdded",
+              "groupsExisting",
+              "bookmarksAdded",
+              "bookmarksUpdated",
+              "bookmarksSkipped",
+              "workspacesRemoved",
+              "groupsRemoved",
+              "bookmarksRemoved"
+            ],
+            "additionalProperties": false
+          },
+          "titleChange": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sample": {
+            "maxItems": 25,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "source",
+          "mode",
+          "duplicates",
+          "counts",
+          "titleChange",
+          "warnings",
+          "sample"
+        ],
+        "additionalProperties": false
+      },
+      "ImportResult": {
+        "type": "object",
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/ImportPreview"
+          },
+          "backup": {
+            "type": "string",
+            "description": "Name of the safety backup created before the import (SQLite: pre-import-*.sqlite, PostgreSQL/MySQL: pre-import-*.json)."
+          }
+        },
+        "required": [
+          "preview",
+          "backup"
+        ],
+        "additionalProperties": false
+      },
+      "BackupInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-22T09:30:00.000Z"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "auto",
+              "pre-import",
+              "pre-restore",
+              "other"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "sizeBytes",
+          "createdAt",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "BackupInfoPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupInfo"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "items",
+          "page"
+        ],
+        "additionalProperties": false
+      },
+      "RestoreResult": {
+        "type": "object",
+        "properties": {
+          "safetyBackup": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "safetyBackup"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request: validation failed or a required confirmation is missing. `error.fields` lists field messages.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "validation_error",
+                "message": "Invalid request: validation failed or a required confirmation is missing",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Authentication required or the bearer token is invalid.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "authentication_required",
+                "message": "Authentication required or the bearer token is invalid",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The request is not allowed (host, origin, CSRF, HTTPS requirement).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "bad_origin",
+                "message": "The request is not allowed (host, origin, CSRF, HTTPS requirement)",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The resource or endpoint does not exist.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "not_found",
+                "message": "The resource or endpoint does not exist",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "MethodNotAllowed": {
+        "description": "Method or CORS pre-flight not allowed.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "method_not_allowed",
+                "message": "Method or CORS pre-flight not allowed",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with the current state (for example a non-empty group without `mode`, setup already done, backups not supported on this engine).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "conflict",
+                "message": "The request conflicts with the current state (for example a non-empty group without `mode`, setup already done, backups not supported on this engine)",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "The `If-Match` validator no longer matches: the resource changed since you read it. Fetch it again.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "precondition_failed",
+                "message": "The `If-Match` validator no longer matches: the resource changed since you read it",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The request body or uploaded file is too large.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "too_large",
+                "message": "The request body or uploaded file is too large",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Unsupported Content-Type.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "unsupported_media_type",
+                "message": "Unsupported Content-Type",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "The Idempotency-Key was already used with a different request.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "idempotency_key_reuse",
+                "message": "The Idempotency-Key was already used with a different request",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Too many failed authentication attempts. See Retry-After.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "too_many_requests",
+                "message": "Too many failed authentication attempts",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error (details are never exposed; quote the request id).",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "internal",
+                "message": "Unexpected server error (details are never exposed; quote the request id)",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Health status is red.",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/XRequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "example": {
+              "error": {
+                "code": "unavailable",
+                "message": "Health status is red",
+                "requestId": "5b0f2a1e-0000-4000-8000-00000000abcd"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-limits": {
+    "pageSizeMax": 200,
+    "importBytes": 5242880
+  }
+}
