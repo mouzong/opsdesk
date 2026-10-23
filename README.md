@@ -285,7 +285,7 @@ More: [Troubleshooting](docs/operations/troubleshooting.md).
 
 ## CI status
 
-The repository was delivered without CI configuration and without a git remote, so there is **no verified CI badge**. [.github/workflows/ci.yml](.github/workflows/ci.yml) defines jobs for typecheck/tests/build on Node 22 and 24, PostgreSQL/MySQL integration tests, and the strict documentation build. What remains to be configured by you: put the project on GitHub (or translate the workflow's plain `npm`/`pip`/`mkdocs` commands to your CI platform), let the first run pass, then add the badge `![CI](https://github.com/<owner>/<repo>/actions/workflows/ci.yml/badge.svg)`.
+The repository was delivered without CI configuration and without a git remote, so there is **no verified CI badge**. [.github/workflows/ci.yml](.github/workflows/ci.yml) defines jobs for typecheck/tests/build on Node 22 and 24, PostgreSQL/MySQL integration tests, and the strict documentation build. What remains to be configured by you: put the project on GitHub (or translate the workflow's plain `npm`/`pip`/`mkdocs` commands to your CI platform), let the first run pass, then add the badge `![CI](https://github.com/mouzong/opsdesk/actions/workflows/ci.yml/badge.svg)`.
 
 ## More
 
