@@ -13,3 +13,5 @@ opsdesk.config.json
 .venv-docs/
 .env.*
 !.env.example
+
+.DS_Store
